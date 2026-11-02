@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1017">
+    <title>CyberQuest — Ethical Hacker Training</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='game.js') }}" defer></script>
+</head>
+<body>
+    <div class="page-glow page-glow-one" aria-hidden="true"></div>
+    <div class="page-glow page-glow-two" aria-hidden="true"></div>
+    <header class="topbar">
+        <a class="brand" href="{{ url_for('home') }}" aria-label="CyberQuest home">
+            <span class="brand-mark">C<span>Q</span></span>
+            <span class="brand-name">cyber<span>quest</span></span>
+        </a>
+        <div class="topbar-right">
+            <span class="system-status"><i></i> TRAINING SYSTEM ONLINE</span>
+            <span class="avatar" aria-label="Operative profile">OP</span>
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="welcome">
+            <div>
+                <p class="eyebrow"><span class="eyebrow-line"></span> YOUR TRAINING HUB</p>
+                <h1>Think like a defender.<br><span>Train like an operative.</span></h1>
+                <p class="welcome-copy">Sharpen your skills one mission at a time. Every challenge makes you harder to fool.</p>
+            </div>
+            <div class="welcome-art" aria-hidden="true">
+                <div class="orbit orbit-one"></div>
+                <div class="orbit orbit-two"></div>
+                <div class="orbit-core"><span>⌘</span></div>
+                <span class="orbit-dot dot-one"></span>
+                <span class="orbit-dot dot-two"></span>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="notices" aria-live="polite">
+                    {% for category, message in messages %}
+                        <div class="notice notice-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="dashboard-grid" aria-label="Operative dashboard">
+            <article class="panel rank-panel">
+                <div class="rank-copy">
+                    <p class="eyebrow">CURRENT RANK</p>
+                    <h2>{{ rank }}</h2>
+                    <p class="rank-level">LEVEL {{ level }} <span class="level-dot">•</span> Operative</p>
+                </div>
+                <div class="rank-emblem" aria-hidden="true"><span>✳</span></div>
+                <div class="rank-progress">
+                    <div class="progress-label"><span>Progress to next level</span><strong>{{ progress }} <small>/ 100 XP</small></strong></div>
+                    <div class="progress-track"><span style="width: {{ progress }}%"></span></div>
+                </div>
+            </article>
+            <article class="panel stat-panel">
+                <div class="stat-icon icon-xp">✦</div>
+                <p class="stat-label">TOTAL EXPERIENCE</p>
+                <strong class="stat-value">{{ state.xp }}<small> XP</small></strong>
+                <span class="stat-foot">Keep your momentum going</span>
+            </article>
+            <article class="panel stat-panel">
+                <div class="stat-icon icon-coins">◉</div>
+                <p class="stat-label">AVAILABLE COINS</p>
+                <strong class="stat-value">{{ state.coins }}</strong>
+                <span class="stat-foot">Spend 5 coins on a hint</span>
+            </article>
+            <article class="panel stat-panel streak-panel">
+                <div class="stat-icon icon-streak">↗</div>
+                <p class="stat-label">MISSION STREAK</p>
+                <strong class="stat-value">{{ state.streak }}<small> in a row</small></strong>
+                <span class="stat-foot">Best streak: {{ state.best_streak }}</span>
+            </article>
+        </section>
+
+        {% if game and mission and question %}
+            <section class="panel game-panel" id="active-mission">
+                <div class="game-heading">
+                    <div>
+                        <p class="eyebrow">{{ mission.category }} <span class="separator">/</span> {{ mission.difficulty }}</p>
+                        <h2>{{ mission.icon }} <span>{{ mission.title }}</span></h2>
+                    </div>
+                    <div class="timer" data-deadline="{{ game.deadline }}" data-total="{{ mission.time }}">
+                        <span class="timer-label">TIME LEFT</span>
+                        <strong id="timer-value">{{ remaining }}</strong><small> SEC</small>
+                    </div>
+                </div>
+                <div class="timer-track"><span id="timer-fill" style="width: {{ (remaining / mission.time * 100)|round }}%"></span></div>
+                <div class="question-meta">QUESTION {{ game.question_index + 1 }} <span>OF 3</span></div>
+                <h3 class="question-text">{{ question.question }}</h3>
+                <form class="answer-form" action="{{ url_for('submit_answer') }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <fieldset class="answer-options">
+                        <legend class="sr-only">Choose your answer</legend>
+                        {% for option in question.options %}
+                            <label class="answer-option">
+                                <input type="radio" name="answer" value="{{ option }}" required>
+                                <span class="option-letter">{{ "ABCD"[loop.index0] }}</span>
+                                <span class="option-copy">{{ option }}</span>
+                                <span class="option-check" aria-hidden="true">✓</span>
+                            </label>
+                        {% endfor %}
+                    </fieldset>
+                    <div class="game-footer">
+                        <span class="game-tip">Choose carefully — one wrong answer ends this run.</span>
+                        <div class="game-actions">
+                            <button class="button button-quiet" formaction="{{ url_for('use_hint') }}" formmethod="post" formnovalidate>
+                                ✧ Hint <span>−5</span>
+                            </button>
+                            <button class="button button-primary" type="submit">Submit answer <span aria-hidden="true">→</span></button>
+                        </div>
+                    </div>
+                </form>
+                <form class="quit-form" action="{{ url_for('quit_mission') }}" method="post" data-confirm="Exit this mission? Your streak will reset.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="text-button" type="submit">Exit mission</button>
+                </form>
+                <form id="timeout-form" action="{{ url_for('submit_answer') }}" method="post" hidden>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                </form>
+            </section>
+        {% endif %}
+
+        <section class="missions-section" id="missions">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">THE CAMPAIGN</p>
+                    <h2>Choose your next mission</h2>
+                </div>
+                <span class="mission-count">{{ state.completed|length }} <span>/ {{ missions|length }} COMPLETE</span></span>
+            </div>
+            <div class="mission-grid">
+                {% for mission in missions %}
+                    <article class="panel mission-card{% if not mission.unlocked %} is-locked{% endif %}{% if mission.completed %} is-complete{% endif %}">
+                        <div class="mission-card-top">
+                            <span class="mission-icon">{{ mission.icon }}</span>
+                            {% if mission.completed %}
+                                <span class="mission-tag tag-complete">COMPLETED</span>
+                            {% elif not mission.unlocked %}
+                                <span class="mission-tag tag-locked">LOCKED</span>
+                            {% else %}
+                                <span class="mission-tag tag-{{ mission.difficulty|lower }}">{{ mission.difficulty|upper }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="mission-index">MISSION {{ "%02d"|format(mission.index + 1) }}</p>
+                        <h3>{{ mission.title }}</h3>
+                        <p class="mission-description">{{ mission.description }}</p>
+                        <div class="mission-rewards">
+                            <span><b>✦</b> +{{ mission.xp }} XP</span>
+                            <span><b>◉</b> +{{ mission.coins }} coins</span>
+                        </div>
+                        <form action="{{ url_for('start_mission', index=mission.index) }}" method="post">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            {% if mission.completed %}
+                                <button class="button button-card button-done" type="button" disabled>Mission complete <span>✓</span></button>
+                            {% elif not mission.unlocked or game %}
+                                <button class="button button-card button-disabled" type="button" disabled>
+                                    {% if game %}Mission in progress{% else %}Complete previous mission{% endif %}<span>↗</span>
+                                </button>
+                            {% else %}
+                                <button class="button button-card" type="submit">Start mission <span>→</span></button>
+                            {% endif %}
+                        </form>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel achievements" id="achievements">
+            <div class="achievement-heading">
+                <div>
+                    <p class="eyebrow">A LITTLE RECOGNITION</p>
+                    <h2>Achievements</h2>
+                </div>
+                <span class="achievement-total">{{ state.badges|length }} <span>/ {{ badges|length }} unlocked</span></span>
+            </div>
+            <div class="badge-grid">
+                {% for badge in badges %}
+                    <div class="badge{% if badge.earned %} badge-earned{% endif %}">
+                        <span class="badge-icon">{% if badge.earned %}{{ badge.icon }}{% else %}◇{% endif %}</span>
+                        <span class="badge-name">{{ badge.name }}</span>
+                        <span class="badge-status">{% if badge.earned %}UNLOCKED{% else %}NOT YET{% endif %}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="reset-row">
+            <span>Need a fresh start?</span>
+            <form action="{{ url_for('reset_progress') }}" method="post" data-confirm="Reset all XP, coins, achievements, and mission progress? This cannot be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="text-button reset-button" type="submit">Reset all progress</button>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        <span class="footer-brand">CYBERQUEST</span>
+        <span>Learn smart. Think ethically. Stay curious.</span>
+        <span class="footer-version">PYTHON EDITION <i>•</i> 1.0</span>
+    </footer>
+</body>
+</html>
